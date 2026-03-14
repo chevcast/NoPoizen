@@ -14,7 +14,7 @@ NoPoizen.WIDGET_SCALE_STEP = 0.05
 NoPoizen.AUDIO_VOLUME_MIN = 0
 NoPoizen.AUDIO_VOLUME_MAX = 1
 NoPoizen.AUDIO_VOLUME_STEP = 0.05
-NoPoizen.AUDIO_TRANSITION_ARM_DELAY_SECONDS = 2.0
+NoPoizen.AUDIO_TRANSITION_ARM_DELAY_SECONDS = 5.0
 
 NoPoizen.DEFAULT_INDICATOR_ANCHOR = {
 	point = "CENTER",
@@ -635,6 +635,9 @@ function NoPoizen:PLAYER_LOGIN()
 end
 
 function NoPoizen:PLAYER_ENTERING_WORLD()
+	if self.isEnabled then
+		self:ResetAudioTransitionArming()
+	end
 	if self.isEnabled and self.RefreshPoisonState then
 		self:RefreshPoisonState("PLAYER_ENTERING_WORLD")
 	end
