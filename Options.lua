@@ -63,6 +63,9 @@ function NoPoizen:RefreshOptionsWindow()
 	if controls.playAudioIndicator then
 		controls.playAudioIndicator:SetChecked(self:GetOption("playAudioIndicator") == true)
 	end
+	if controls.playSatisfiedAudioIndicator then
+		controls.playSatisfiedAudioIndicator:SetChecked(self:GetOption("playSatisfiedAudioIndicator") == true)
+	end
 
 	local currentVolume = self:NormalizeAudioVolume(self:GetOption("audioVolume")) or self.DEFAULTS.audioVolume
 	if controls.audioVolumeSlider then
@@ -74,8 +77,21 @@ function NoPoizen:RefreshOptionsWindow()
 		controls.audioVolumeValue:SetText(string.format("%d%%", math.floor((currentVolume * 100) + 0.5)))
 	end
 
+	local currentSatisfiedVolume = self:NormalizeAudioVolume(self:GetOption("satisfiedAudioVolume"))
+		or self.DEFAULTS.satisfiedAudioVolume
+	if controls.satisfiedAudioVolumeSlider then
+		controls.satisfiedAudioVolumeSlider.npUpdating = true
+		controls.satisfiedAudioVolumeSlider:SetValue(currentSatisfiedVolume)
+		controls.satisfiedAudioVolumeSlider.npUpdating = false
+	end
+	if controls.satisfiedAudioVolumeValue then
+		controls.satisfiedAudioVolumeValue:SetText(string.format("%d%%", math.floor((currentSatisfiedVolume * 100) + 0.5)))
+	end
+
 	local audioEnabled = self:GetOption("playAudioIndicator") == true
 	SetSliderEnabled(controls.audioVolumeSlider, audioEnabled)
+	local satisfiedAudioEnabled = self:GetOption("playSatisfiedAudioIndicator") == true
+	SetSliderEnabled(controls.satisfiedAudioVolumeSlider, satisfiedAudioEnabled)
 end
 
 function NoPoizen:OpenOptionsWindow()
@@ -156,11 +172,54 @@ function NoPoizen:InitializeOptionsWindow()
 		NoPoizen:SetOption("audioVolume", normalized)
 	end)
 
+	local playSatisfiedAudioIndicator = CreateCheckbox(
+		frame,
+		"playSatisfiedAudioIndicator",
+		"Play sound when poison requirements are satisfied",
+		"Play hahaha.wav once when transitioning from missing poisons to fully satisfied.",
+		16,
+		-232
+	)
+
+	local satisfiedAudioVolumeSlider = CreateFrame("Slider", nil, frame, "OptionsSliderTemplate")
+	satisfiedAudioVolumeSlider:SetPoint("TOPLEFT", frame, "TOPLEFT", 32, -284)
+	satisfiedAudioVolumeSlider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -48, -284)
+	satisfiedAudioVolumeSlider:SetMinMaxValues(self.AUDIO_VOLUME_MIN, self.AUDIO_VOLUME_MAX)
+	satisfiedAudioVolumeSlider:SetValueStep(self.AUDIO_VOLUME_STEP)
+	if satisfiedAudioVolumeSlider.SetObeyStepOnDrag then
+		satisfiedAudioVolumeSlider:SetObeyStepOnDrag(true)
+	end
+	if satisfiedAudioVolumeSlider.Text then
+		satisfiedAudioVolumeSlider.Text:SetText("Satisfied sound volume")
+	end
+	if satisfiedAudioVolumeSlider.Low then
+		satisfiedAudioVolumeSlider.Low:SetText("0%")
+	end
+	if satisfiedAudioVolumeSlider.High then
+		satisfiedAudioVolumeSlider.High:SetText("100%")
+	end
+
+	local satisfiedAudioVolumeValue = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	satisfiedAudioVolumeValue:SetPoint("TOP", satisfiedAudioVolumeSlider, "BOTTOM", 0, -4)
+	satisfiedAudioVolumeValue:SetText("")
+
+	satisfiedAudioVolumeSlider:SetScript("OnValueChanged", function(slider, value)
+		local normalized = NoPoizen:NormalizeAudioVolume(value) or NoPoizen.DEFAULTS.satisfiedAudioVolume
+		satisfiedAudioVolumeValue:SetText(string.format("%d%%", math.floor((normalized * 100) + 0.5)))
+		if slider.npUpdating then
+			return
+		end
+		NoPoizen:SetOption("satisfiedAudioVolume", normalized)
+	end)
+
 	self.optionControls = {
 		showVisualIndicator = showVisualIndicator,
 		playAudioIndicator = playAudioIndicator,
 		audioVolumeSlider = audioVolumeSlider,
 		audioVolumeValue = audioVolumeValue,
+		playSatisfiedAudioIndicator = playSatisfiedAudioIndicator,
+		satisfiedAudioVolumeSlider = satisfiedAudioVolumeSlider,
+		satisfiedAudioVolumeValue = satisfiedAudioVolumeValue,
 	}
 
 	frame:SetScript("OnShow", function()

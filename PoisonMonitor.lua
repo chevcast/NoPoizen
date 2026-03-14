@@ -91,41 +91,54 @@ local function ShouldPlayAudio(lastMissingState, currentMissingState, audioEnabl
 	return not lastMissingState
 end
 
-local function BuildCategoryLookups(knownByCategory)
-	local lookups = {
-		ids = {},
-		names = {},
-	}
-	for category, spells in pairs(knownByCategory) do
-		for _, spell in ipairs(spells) do
-			if spell.spellID then
-				lookups.ids[spell.spellID] = category
-			end
-			if type(spell.name) == "string" and spell.name ~= "" then
-				lookups.names[string.lower(spell.name)] = category
-			end
-		end
+local function ShouldPlaySatisfiedAudio(lastMissingState, currentSatisfiedState, audioEnabled, audioVolume)
+	if not audioEnabled then
+		return false
 	end
-	return lookups
+	if (tonumber(audioVolume) or 0) <= 0 then
+		return false
+	end
+	if not currentSatisfiedState then
+		return false
+	end
+	return lastMissingState
 end
 
-local function BuildFallbackCategoryLookups(catalog)
-	local lookups = {
-		ids = {},
-		names = {},
-	}
-	for category, spells in pairs(catalog) do
-		for _, spell in ipairs(spells) do
-			if spell.spellID then
-				lookups.ids[spell.spellID] = category
-			end
-			local spellName = GetSpellNameSafe(spell.spellID) or spell.fallbackName
-			if type(spellName) == "string" and spellName ~= "" then
-				lookups.names[string.lower(spellName)] = category
+local function HasHelpfulAuraBySpellID(unitToken, spellID)
+	if not spellID then
+		return false
+	end
+
+	if AuraUtil and AuraUtil.FindAuraBySpellID then
+		local ok, aura = pcall(AuraUtil.FindAuraBySpellID, spellID, unitToken, "HELPFUL")
+		if ok and aura then
+			return true
+		end
+	end
+
+	if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID and unitToken == "player" then
+		local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, spellID)
+		if ok and aura then
+			return true
+		end
+	end
+
+	if UnitAura then
+		local spellName = GetSpellNameSafe(spellID)
+		if type(spellName) == "string" and spellName ~= "" then
+			for auraIndex = 1, 40 do
+				local auraName = UnitAura(unitToken, auraIndex, "HELPFUL")
+				if not auraName then
+					break
+				end
+				if auraName == spellName then
+					return true
+				end
 			end
 		end
 	end
-	return lookups
+
+	return false
 end
 
 local function BuildIndicatorRows(knownByCategory, activeCategoryState, requiredCounts)
@@ -168,6 +181,7 @@ NoPoizen.Testables = NoPoizen.Testables or {}
 NoPoizen.Testables.CalculateMissingCounts = CalculateMissingCounts
 NoPoizen.Testables.ResolveRequiredCounts = ResolveRequiredCounts
 NoPoizen.Testables.ShouldPlayAudio = ShouldPlayAudio
+NoPoizen.Testables.ShouldPlaySatisfiedAudio = ShouldPlaySatisfiedAudio
 NoPoizen.Testables.BuildIndicatorRows = BuildIndicatorRows
 
 function NoPoizen:HasDragonTemperedBladesSelected()
@@ -215,38 +229,17 @@ function NoPoizen:GetActivePoisonAuraState(knownByCategory)
 		},
 	}
 
-	local lookup = BuildCategoryLookups(knownByCategory)
-	local fallbackLookup = BuildFallbackCategoryLookups(self.poisonCatalog)
-	local seenAuraBySpellID = {}
-
-	self:ForEachHelpfulAura("player", function(spellID, auraName)
-		local category = nil
-		if spellID and lookup.ids[spellID] then
-			category = lookup.ids[spellID]
-		elseif spellID and fallbackLookup.ids[spellID] then
-			category = fallbackLookup.ids[spellID]
-		elseif type(auraName) == "string" and auraName ~= "" then
-			local key = string.lower(auraName)
-			category = lookup.names[key] or fallbackLookup.names[key]
+	for category, spells in pairs(knownByCategory) do
+		for _, spell in ipairs(spells) do
+			if spell.spellID and HasHelpfulAuraBySpellID("player", spell.spellID) then
+				activeCategoryState.counts[category] = (activeCategoryState.counts[category] or 0) + 1
+				activeCategoryState.spellIDs[category][spell.spellID] = true
+				if type(spell.name) == "string" and spell.name ~= "" then
+					activeCategoryState.names[category][string.lower(spell.name)] = true
+				end
+			end
 		end
-
-		if not category then
-			return
-		end
-
-		local dedupeKey = spellID or ("name:" .. tostring(auraName))
-		if seenAuraBySpellID[dedupeKey] then
-			return
-		end
-		seenAuraBySpellID[dedupeKey] = true
-		activeCategoryState.counts[category] = (activeCategoryState.counts[category] or 0) + 1
-		if spellID then
-			activeCategoryState.spellIDs[category][spellID] = true
-		end
-		if type(auraName) == "string" and auraName ~= "" then
-			activeCategoryState.names[category][string.lower(auraName)] = true
-		end
-	end)
+	end
 
 	return activeCategoryState
 end
@@ -307,15 +300,29 @@ function NoPoizen:RefreshPoisonState(_reason)
 		self:UpdatePoisonIndicator(state)
 	end
 
+	local previousMissingState = self.audioMissingState and true or false
 	local currentMissingState = state.eligible and state.hasMissing
-	local shouldPlay = ShouldPlayAudio(
-		self.audioMissingState,
+	local currentSatisfiedState = state.eligible and (not state.hasMissing)
+
+	local shouldPlayMissing = ShouldPlayAudio(
+		previousMissingState,
 		currentMissingState,
 		self:GetOption("playAudioIndicator") == true,
 		self:GetOption("audioVolume")
 	)
-	if shouldPlay then
+	if shouldPlayMissing then
 		self:PlayMissingPoisonSound()
 	end
+
+	local shouldPlaySatisfied = ShouldPlaySatisfiedAudio(
+		previousMissingState,
+		currentSatisfiedState,
+		self:GetOption("playSatisfiedAudioIndicator") == true,
+		self:GetOption("satisfiedAudioVolume")
+	)
+	if shouldPlaySatisfied and self.PlaySatisfiedPoisonSound then
+		self:PlaySatisfiedPoisonSound()
+	end
+
 	self.audioMissingState = currentMissingState
 end

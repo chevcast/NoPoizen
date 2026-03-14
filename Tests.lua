@@ -106,6 +106,19 @@ NoPoizen:RegisterTest("audio plays only on missing state transition", function()
 	AssertTrue(recovered == false, "resolved state should not play")
 end)
 
+NoPoizen:RegisterTest("satisfied audio plays only on missing to satisfied transition", function()
+	local fromMissing = NoPoizen.Testables.ShouldPlaySatisfiedAudio(true, true, true, 1.0)
+	local steadySatisfied = NoPoizen.Testables.ShouldPlaySatisfiedAudio(false, true, true, 1.0)
+	local stillMissing = NoPoizen.Testables.ShouldPlaySatisfiedAudio(true, false, true, 1.0)
+	local disabled = NoPoizen.Testables.ShouldPlaySatisfiedAudio(true, true, false, 1.0)
+	local muted = NoPoizen.Testables.ShouldPlaySatisfiedAudio(true, true, true, 0)
+	AssertTrue(fromMissing == true, "transition from missing should play satisfied audio")
+	AssertTrue(steadySatisfied == false, "steady satisfied should not replay")
+	AssertTrue(stillMissing == false, "missing state should not play satisfied audio")
+	AssertTrue(disabled == false, "disabled satisfied audio should not play")
+	AssertTrue(muted == false, "muted satisfied audio should not play")
+end)
+
 NoPoizen:RegisterTest("indicator rows include both categories when both are missing", function()
 	local rows = NoPoizen.Testables.BuildIndicatorRows(
 		{

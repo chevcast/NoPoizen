@@ -4,7 +4,8 @@ local NoPoizen = _G.NoPoizen or addonTable or {}
 _G.NoPoizen = NoPoizen
 
 NoPoizen.addonName = addonName or "NoPoizen"
-NoPoizen.SOUND_FILE_PATH = "Interface\\AddOns\\NoPoizen\\nopoizen.mp3"
+NoPoizen.MISSING_SOUND_FILE_PATH = "Interface\\AddOns\\NoPoizen\\nopoizen.wav"
+NoPoizen.SATISFIED_SOUND_FILE_PATH = "Interface\\AddOns\\NoPoizen\\hahaha.wav"
 NoPoizen.DRAGON_TEMPERED_BLADES_SPELL_ID = 381801
 
 NoPoizen.WIDGET_SCALE_MIN = 0.6
@@ -26,6 +27,8 @@ NoPoizen.DEFAULTS = {
 	showVisualIndicator = true,
 	playAudioIndicator = true,
 	audioVolume = 0.5,
+	playSatisfiedAudioIndicator = true,
+	satisfiedAudioVolume = 0.5,
 	widgetScale = 1.0,
 	indicatorAnchor = {
 		point = "CENTER",
@@ -164,6 +167,7 @@ function NoPoizen:InitializeDatabase()
 
 	self.db.widgetScale = self:NormalizeWidgetScale(self.db.widgetScale) or self.DEFAULTS.widgetScale
 	self.db.audioVolume = self:NormalizeAudioVolume(self.db.audioVolume) or self.DEFAULTS.audioVolume
+	self.db.satisfiedAudioVolume = self:NormalizeAudioVolume(self.db.satisfiedAudioVolume) or self.DEFAULTS.satisfiedAudioVolume
 end
 
 function NoPoizen:GetOption(optionKey)
@@ -179,14 +183,19 @@ function NoPoizen:SetOption(optionKey, value)
 	end
 
 	local normalizedValue = value
-	if optionKey == "showVisualIndicator" or optionKey == "playAudioIndicator" or optionKey == "enabled" then
+	if
+		optionKey == "showVisualIndicator"
+		or optionKey == "playAudioIndicator"
+		or optionKey == "playSatisfiedAudioIndicator"
+		or optionKey == "enabled"
+	then
 		normalizedValue = value and true or false
 	elseif optionKey == "widgetScale" then
 		normalizedValue = self:NormalizeWidgetScale(value)
 		if not normalizedValue then
 			return false
 		end
-	elseif optionKey == "audioVolume" then
+	elseif optionKey == "audioVolume" or optionKey == "satisfiedAudioVolume" then
 		normalizedValue = self:NormalizeAudioVolume(value)
 		if not normalizedValue then
 			return false
@@ -396,8 +405,12 @@ function NoPoizen:RestoreChannelVolumeAfterPlayback(cvarName, soundHandle)
 	end
 end
 
-function NoPoizen:PlayMissingPoisonSound()
-	local volume = self:GetEffectiveAudioVolume(self:GetOption("audioVolume"))
+function NoPoizen:PlayAlertSound(soundFilePath, volumeOptionKey)
+	if type(soundFilePath) ~= "string" or soundFilePath == "" then
+		return false
+	end
+
+	local volume = self:GetEffectiveAudioVolume(self:GetOption(volumeOptionKey))
 	if volume <= 0 then
 		return false
 	end
@@ -410,17 +423,25 @@ function NoPoizen:PlayMissingPoisonSound()
 	end
 
 	if not self:AcquireTemporaryChannelVolume(channelVolumeCVar, volume) then
-		local ok, willPlay = pcall(PlaySoundFile, self.SOUND_FILE_PATH, channel)
+		local ok, willPlay = pcall(PlaySoundFile, soundFilePath, channel)
 		return ok and (willPlay and true or false)
 	end
 
-	local ok, willPlay, soundHandle = pcall(PlaySoundFile, self.SOUND_FILE_PATH, channel)
+	local ok, willPlay, soundHandle = pcall(PlaySoundFile, soundFilePath, channel)
 	if not ok or not willPlay then
 		self:ReleaseTemporaryChannelVolume(channelVolumeCVar)
 		return false
 	end
 	self:RestoreChannelVolumeAfterPlayback(channelVolumeCVar, type(soundHandle) == "number" and soundHandle or nil)
 	return true
+end
+
+function NoPoizen:PlayMissingPoisonSound()
+	return self:PlayAlertSound(self.MISSING_SOUND_FILE_PATH, "audioVolume")
+end
+
+function NoPoizen:PlaySatisfiedPoisonSound()
+	return self:PlayAlertSound(self.SATISFIED_SOUND_FILE_PATH, "satisfiedAudioVolume")
 end
 
 function NoPoizen:RegisterRuntimeEvents()
