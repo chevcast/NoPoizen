@@ -14,6 +14,7 @@ NoPoizen.WIDGET_SCALE_STEP = 0.05
 NoPoizen.AUDIO_VOLUME_MIN = 0
 NoPoizen.AUDIO_VOLUME_MAX = 1
 NoPoizen.AUDIO_VOLUME_STEP = 0.05
+NoPoizen.AUDIO_TRANSITION_ARM_DELAY_SECONDS = 2.0
 
 NoPoizen.DEFAULT_INDICATOR_ANCHOR = {
 	point = "CENTER",
@@ -42,6 +43,8 @@ NoPoizen.isInitialized = NoPoizen.isInitialized or false
 NoPoizen.hasLoggedIn = NoPoizen.hasLoggedIn or false
 NoPoizen.isEnabled = NoPoizen.isEnabled or false
 NoPoizen.audioMissingState = NoPoizen.audioMissingState or false
+NoPoizen.audioTransitionsArmed = NoPoizen.audioTransitionsArmed or false
+NoPoizen.audioTransitionsArmAt = NoPoizen.audioTransitionsArmAt or 0
 
 NoPoizen.runtimeEvents = {
 	"PLAYER_ENTERING_WORLD",
@@ -156,6 +159,24 @@ function NoPoizen:GetEffectiveAudioVolume(value)
 		normalized = self:NormalizeAudioVolume(self:GetOption("audioVolume")) or self.DEFAULTS.audioVolume
 	end
 	return math.min(1, normalized * 2)
+end
+
+function NoPoizen:ResetAudioTransitionArming(delaySeconds)
+	local delay = tonumber(delaySeconds)
+	if not delay or delay < 0 then
+		delay = self.AUDIO_TRANSITION_ARM_DELAY_SECONDS
+	end
+
+	local now = 0
+	if self.API and self.API.GetTime then
+		now = tonumber(self.API.GetTime()) or 0
+	elseif GetTime then
+		now = tonumber(GetTime()) or 0
+	end
+
+	self.audioMissingState = false
+	self.audioTransitionsArmed = false
+	self.audioTransitionsArmAt = now + delay
 end
 
 function NoPoizen:InitializeDatabase()
@@ -475,7 +496,7 @@ function NoPoizen:Enable()
 
 	self:RegisterRuntimeEvents()
 	self.isEnabled = true
-	self.audioMissingState = false
+	self:ResetAudioTransitionArming()
 
 	if self.EnsurePoisonIndicatorWidget then
 		self:EnsurePoisonIndicatorWidget()
@@ -505,6 +526,8 @@ function NoPoizen:Disable()
 	self:UnregisterRuntimeEvents()
 	self.isEnabled = false
 	self.audioMissingState = false
+	self.audioTransitionsArmed = false
+	self.audioTransitionsArmAt = 0
 	if self.DeselectPoisonIndicatorAnchor then
 		self:DeselectPoisonIndicatorAnchor()
 	end

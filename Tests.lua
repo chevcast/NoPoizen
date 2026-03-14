@@ -113,6 +113,24 @@ NoPoizen:RegisterTest("satisfied audio plays only on missing to satisfied transi
 	AssertTrue(muted == false, "muted satisfied audio should not play")
 end)
 
+NoPoizen:RegisterTest("audio arming suppresses playback before arm time", function()
+	local isArmed, suppress = NoPoizen.Testables.ResolveAudioArmingState(false, 12.0, 11.9)
+	AssertTrue(isArmed == false, "should remain unarmed before arm time")
+	AssertTrue(suppress == true, "should suppress playback before arm time")
+end)
+
+NoPoizen:RegisterTest("audio arming seeds state at arm time without playback", function()
+	local isArmed, suppress = NoPoizen.Testables.ResolveAudioArmingState(false, 12.0, 12.0)
+	AssertTrue(isArmed == true, "should arm at arm time")
+	AssertTrue(suppress == true, "first armed tick should still suppress playback")
+end)
+
+NoPoizen:RegisterTest("audio arming allows playback once armed", function()
+	local isArmed, suppress = NoPoizen.Testables.ResolveAudioArmingState(true, 12.0, 99.0)
+	AssertTrue(isArmed == true, "should stay armed")
+	AssertTrue(suppress == false, "armed state should allow playback")
+end)
+
 NoPoizen:RegisterTest("indicator rows include both categories when both are missing", function()
 	local rows = NoPoizen.Testables.BuildIndicatorRows(
 		{

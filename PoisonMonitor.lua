@@ -104,6 +104,21 @@ local function ShouldPlaySatisfiedAudio(lastMissingState, currentSatisfiedState,
 	return lastMissingState
 end
 
+local function ResolveAudioArmingState(isArmed, armAtTime, nowTime)
+	if isArmed then
+		return true, false
+	end
+
+	local armAt = tonumber(armAtTime) or 0
+	local now = tonumber(nowTime) or 0
+	if now < armAt then
+		return false, true
+	end
+
+	-- First refresh at/after arm-time seeds baseline state without firing transition audio.
+	return true, true
+end
+
 local function HasHelpfulAuraBySpellID(unitToken, spellID)
 	if not spellID then
 		return false
@@ -182,6 +197,7 @@ NoPoizen.Testables.CalculateMissingCounts = CalculateMissingCounts
 NoPoizen.Testables.ResolveRequiredCounts = ResolveRequiredCounts
 NoPoizen.Testables.ShouldPlayAudio = ShouldPlayAudio
 NoPoizen.Testables.ShouldPlaySatisfiedAudio = ShouldPlaySatisfiedAudio
+NoPoizen.Testables.ResolveAudioArmingState = ResolveAudioArmingState
 NoPoizen.Testables.BuildIndicatorRows = BuildIndicatorRows
 
 function NoPoizen:HasDragonTemperedBladesSelected()
@@ -303,6 +319,22 @@ function NoPoizen:RefreshPoisonState(_reason)
 	local previousMissingState = self.audioMissingState and true or false
 	local currentMissingState = state.eligible and state.hasMissing
 	local currentSatisfiedState = state.eligible and (not state.hasMissing)
+	local now = 0
+	if self.API and self.API.GetTime then
+		now = tonumber(self.API.GetTime()) or 0
+	elseif GetTime then
+		now = tonumber(GetTime()) or 0
+	end
+	local nextArmedState, shouldSuppressPlayback = ResolveAudioArmingState(
+		self.audioTransitionsArmed == true,
+		self.audioTransitionsArmAt,
+		now
+	)
+	self.audioTransitionsArmed = nextArmedState
+	if shouldSuppressPlayback then
+		self.audioMissingState = currentMissingState
+		return
+	end
 
 	local shouldPlayMissing = ShouldPlayAudio(
 		previousMissingState,
