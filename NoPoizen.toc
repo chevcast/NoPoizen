@@ -1,6 +1,6 @@
 ## Interface: 120000, 120001
 ## Title: NoPoizen
-## Version: 1.0.3
+## Version: 1.0.4
 ## Notes: Warns Rogues when lethal/non-lethal poisons are missing.
 ## SavedVariablesPerCharacter: NoPoizenDBChar
 ## Author: Chev
