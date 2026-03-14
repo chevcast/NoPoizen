@@ -12,8 +12,8 @@ local function EnsurePoisonIndicatorSelection(hostFrame)
 		return nil
 	end
 
-	local ok, selection = pcall(CreateFrame, "Frame", nil, hostFrame, "EditModeSystemSelectionTemplate")
-	if not ok or not selection then
+	local selection = CreateFrame("Frame", nil, hostFrame, "EditModeSystemSelectionTemplate")
+	if not selection then
 		return nil
 	end
 

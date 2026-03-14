@@ -110,15 +110,15 @@ local function HasHelpfulAuraBySpellID(unitToken, spellID)
 	end
 
 	if AuraUtil and AuraUtil.FindAuraBySpellID then
-		local ok, aura = pcall(AuraUtil.FindAuraBySpellID, spellID, unitToken, "HELPFUL")
-		if ok and aura then
+		local aura = AuraUtil.FindAuraBySpellID(spellID, unitToken, "HELPFUL")
+		if aura then
 			return true
 		end
 	end
 
 	if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID and unitToken == "player" then
-		local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, spellID)
-		if ok and aura then
+		local aura = C_UnitAuras.GetPlayerAuraBySpellID(spellID)
+		if aura then
 			return true
 		end
 	end

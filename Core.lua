@@ -348,7 +348,7 @@ function NoPoizen:AcquireTemporaryChannelVolume(cvarName, targetVolume)
 
 	lock.depth = lock.depth + 1
 	local clampedTarget = ClampZeroToOne(targetVolume)
-	pcall(SetCVar, cvarName, tostring(clampedTarget))
+	SetCVar(cvarName, tostring(clampedTarget))
 	return true
 end
 
@@ -370,7 +370,7 @@ function NoPoizen:ReleaseTemporaryChannelVolume(cvarName)
 		return
 	end
 
-	pcall(SetCVar, cvarName, tostring(ClampZeroToOne(lock.original)))
+	SetCVar(cvarName, tostring(ClampZeroToOne(lock.original)))
 	self.activeChannelVolumeLocks[cvarName] = nil
 end
 
@@ -381,12 +381,9 @@ function NoPoizen:RestoreChannelVolumeAfterPlayback(cvarName, soundHandle)
 	if soundHandle and C_Sound and type(C_Sound.IsPlaying) == "function" and self.API and self.API.GetTime and self.API.Delay then
 		local startTime = self.API.GetTime()
 		local function Poll()
-			local isPlaying = false
-			local ok = pcall(function()
-				isPlaying = C_Sound.IsPlaying(soundHandle)
-			end)
+			local isPlaying = C_Sound.IsPlaying(soundHandle)
 			local elapsed = (self.API.GetTime() or 0) - (startTime or 0)
-			if ok and isPlaying and elapsed < maxWaitSeconds then
+			if isPlaying and elapsed < maxWaitSeconds then
 				self.API.Delay(pollSeconds, Poll)
 				return
 			end
@@ -423,12 +420,12 @@ function NoPoizen:PlayAlertSound(soundFilePath, volumeOptionKey)
 	end
 
 	if not self:AcquireTemporaryChannelVolume(channelVolumeCVar, volume) then
-		local ok, willPlay = pcall(PlaySoundFile, soundFilePath, channel)
-		return ok and (willPlay and true or false)
+		local willPlay = PlaySoundFile(soundFilePath, channel)
+		return willPlay and true or false
 	end
 
-	local ok, willPlay, soundHandle = pcall(PlaySoundFile, soundFilePath, channel)
-	if not ok or not willPlay then
+	local willPlay, soundHandle = PlaySoundFile(soundFilePath, channel)
+	if not willPlay then
 		self:ReleaseTemporaryChannelVolume(channelVolumeCVar)
 		return false
 	end
@@ -449,16 +446,14 @@ function NoPoizen:RegisterRuntimeEvents()
 	wipe(self.registeredRuntimeEvents)
 
 	for _, eventName in ipairs(self.runtimeEvents) do
-		local ok = pcall(self.eventFrame.RegisterEvent, self.eventFrame, eventName)
-		if ok then
-			self.registeredRuntimeEvents[eventName] = true
-		end
+		self.eventFrame:RegisterEvent(eventName)
+		self.registeredRuntimeEvents[eventName] = true
 	end
 end
 
 function NoPoizen:UnregisterRuntimeEvents()
 	for eventName in pairs(self.registeredRuntimeEvents or {}) do
-		pcall(self.eventFrame.UnregisterEvent, self.eventFrame, eventName)
+		self.eventFrame:UnregisterEvent(eventName)
 	end
 	if self.registeredRuntimeEvents then
 		wipe(self.registeredRuntimeEvents)
@@ -521,7 +516,7 @@ end
 
 function NoPoizen:OpenHudEditMode()
 	if not EditModeManagerFrame then
-		pcall(UIParentLoadAddOn, "Blizzard_EditMode")
+		UIParentLoadAddOn("Blizzard_EditMode")
 	end
 	if EditModeManagerFrame and ShowUIPanel then
 		ShowUIPanel(EditModeManagerFrame)
@@ -675,10 +670,7 @@ local function DispatchEvent(_, eventName, ...)
 	if type(handler) ~= "function" then
 		return
 	end
-	local ok, err = pcall(handler, NoPoizen, eventName, ...)
-	if not ok then
-		NoPoizen:Print("Error in event " .. tostring(eventName) .. ": " .. tostring(err))
-	end
+	handler(NoPoizen, eventName, ...)
 end
 
 NoPoizen.eventFrame = NoPoizen.eventFrame or CreateFrame("Frame")

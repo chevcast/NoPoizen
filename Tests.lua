@@ -47,19 +47,13 @@ function NoPoizen:RunTests()
 	table.sort(names)
 
 	local passed = 0
-	local failed = 0
 	for _, name in ipairs(names) do
-		local ok, err = pcall(self.tests[name])
-		if ok then
-			passed = passed + 1
-		else
-			failed = failed + 1
-			self:Print("Test failed: " .. tostring(name) .. " -> " .. tostring(err))
-		end
+		self.tests[name]()
+		passed = passed + 1
 	end
 
-	self:Print(string.format("Tests complete: %d passed, %d failed", passed, failed))
-	return failed == 0
+	self:Print(string.format("Tests complete: %d passed, 0 failed", passed))
+	return true
 end
 
 NoPoizen:RegisterTest("required counts baseline", function()
