@@ -15,6 +15,7 @@ NoPoizen.AUDIO_VOLUME_MIN = 0
 NoPoizen.AUDIO_VOLUME_MAX = 1
 NoPoizen.AUDIO_VOLUME_STEP = 0.05
 NoPoizen.AUDIO_TRANSITION_ARM_DELAY_SECONDS = 5.0
+NoPoizen.POST_LOAD_POISON_REFRESH_DELAY_SECONDS = 1.5
 
 NoPoizen.DEFAULT_INDICATOR_ANCHOR = {
 	point = "CENTER",
@@ -45,9 +46,14 @@ NoPoizen.isEnabled = NoPoizen.isEnabled or false
 NoPoizen.audioMissingState = NoPoizen.audioMissingState or false
 NoPoizen.audioTransitionsArmed = NoPoizen.audioTransitionsArmed or false
 NoPoizen.audioTransitionsArmAt = NoPoizen.audioTransitionsArmAt or 0
+NoPoizen.isLoadingScreenActive = NoPoizen.isLoadingScreenActive or false
+NoPoizen.postLoadRefreshAt = NoPoizen.postLoadRefreshAt or 0
+NoPoizen.postLoadRefreshToken = NoPoizen.postLoadRefreshToken or 0
 
 NoPoizen.runtimeEvents = {
 	"PLAYER_ENTERING_WORLD",
+	"LOADING_SCREEN_ENABLED",
+	"LOADING_SCREEN_DISABLED",
 	"UNIT_AURA",
 	"SPELLS_CHANGED",
 	"PLAYER_TALENT_UPDATE",
@@ -177,6 +183,42 @@ function NoPoizen:ResetAudioTransitionArming(delaySeconds)
 	self.audioMissingState = false
 	self.audioTransitionsArmed = false
 	self.audioTransitionsArmAt = now + delay
+end
+
+function NoPoizen:SchedulePostLoadPoisonRefresh(delaySeconds)
+	local delay = tonumber(delaySeconds)
+	if not delay or delay < 0 then
+		delay = self.POST_LOAD_POISON_REFRESH_DELAY_SECONDS
+	end
+
+	local now = 0
+	if self.API and self.API.GetTime then
+		now = tonumber(self.API.GetTime()) or 0
+	elseif GetTime then
+		now = tonumber(GetTime()) or 0
+	end
+
+	self.postLoadRefreshAt = now + delay
+	self.postLoadRefreshToken = (self.postLoadRefreshToken or 0) + 1
+	local scheduledToken = self.postLoadRefreshToken
+
+	-- Arm transition audio no earlier than the first post-loading refresh.
+	self.audioTransitionsArmed = false
+	self.audioTransitionsArmAt = self.postLoadRefreshAt
+
+	if self.API and self.API.Delay then
+		self.API.Delay(delay, function()
+			if scheduledToken ~= self.postLoadRefreshToken then
+				return
+			end
+			if not self.isEnabled or self.isLoadingScreenActive then
+				return
+			end
+			if self.RefreshPoisonState then
+				self:RefreshPoisonState("POST_LOADING_REFRESH")
+			end
+		end)
+	end
 end
 
 function NoPoizen:InitializeDatabase()
@@ -496,6 +538,9 @@ function NoPoizen:Enable()
 
 	self:RegisterRuntimeEvents()
 	self.isEnabled = true
+	self.isLoadingScreenActive = false
+	self.postLoadRefreshAt = 0
+	self.postLoadRefreshToken = (self.postLoadRefreshToken or 0) + 1
 	self:ResetAudioTransitionArming()
 
 	if self.EnsurePoisonIndicatorWidget then
@@ -525,6 +570,9 @@ function NoPoizen:Disable()
 
 	self:UnregisterRuntimeEvents()
 	self.isEnabled = false
+	self.isLoadingScreenActive = false
+	self.postLoadRefreshAt = 0
+	self.postLoadRefreshToken = (self.postLoadRefreshToken or 0) + 1
 	self.audioMissingState = false
 	self.audioTransitionsArmed = false
 	self.audioTransitionsArmAt = 0
@@ -636,11 +684,32 @@ end
 
 function NoPoizen:PLAYER_ENTERING_WORLD()
 	if self.isEnabled then
+		if self.isLoadingScreenActive or (tonumber(self.postLoadRefreshAt) or 0) > 0 then
+			return
+		end
 		self:ResetAudioTransitionArming()
 	end
 	if self.isEnabled and self.RefreshPoisonState then
 		self:RefreshPoisonState("PLAYER_ENTERING_WORLD")
 	end
+end
+
+function NoPoizen:LOADING_SCREEN_ENABLED()
+	if not self.isEnabled then
+		return
+	end
+	self.isLoadingScreenActive = true
+	self.postLoadRefreshAt = 0
+	self.postLoadRefreshToken = (self.postLoadRefreshToken or 0) + 1
+	self:ResetAudioTransitionArming()
+end
+
+function NoPoizen:LOADING_SCREEN_DISABLED()
+	if not self.isEnabled then
+		return
+	end
+	self.isLoadingScreenActive = false
+	self:SchedulePostLoadPoisonRefresh()
 end
 
 function NoPoizen:UNIT_AURA(_, unitToken)
