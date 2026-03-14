@@ -27,7 +27,7 @@ if [[ -z "$repo_root" ]]; then
 fi
 cd "$repo_root"
 
-toc_file="QuestTogether.toc"
+toc_file="NoPoizen.toc"
 if [[ ! -f "$toc_file" ]]; then
 	echo "Error: $toc_file not found at repo root."
 	exit 1
@@ -74,9 +74,9 @@ minor)
 	minor=$((minor + 1))
 	patch=0
 	;;
-	patch)
-		patch=$((patch + 1))
-		;;
+patch)
+	patch=$((patch + 1))
+	;;
 esac
 
 target_base_version="${major}.${minor}.${patch}"
@@ -87,10 +87,10 @@ if [[ "$release_channel" == "stable" ]]; then
 	new_version="${target_base_version}"
 	new_tag="v${new_version}"
 else
-	channel_max="$(git tag --list "v${target_base_version}-${release_channel}.*" \
-		| sed -n "s/^v${target_base_version}-${release_channel}\.\([0-9][0-9]*\)$/\1/p" \
-		| sort -n \
-		| tail -n 1)"
+	channel_max="$(git tag --list "v${target_base_version}-${release_channel}.*" |
+		sed -n "s/^v${target_base_version}-${release_channel}\.\([0-9][0-9]*\)$/\1/p" |
+		sort -n |
+		tail -n 1)"
 	if [[ -n "$channel_max" ]]; then
 		channel_next=$((channel_max + 1))
 	else
@@ -136,7 +136,7 @@ END {
 		exit 1
 	}
 }
-' "$toc_file" > "$tmp_file"
+' "$toc_file" >"$tmp_file"
 mv "$tmp_file" "$toc_file"
 
 echo "Done."
